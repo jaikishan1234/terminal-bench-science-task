@@ -43,3 +43,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Hidden benchmark data
+task-design/hidden/hidden_validation.csv
