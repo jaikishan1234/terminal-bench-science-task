@@ -7,17 +7,15 @@ from scipy.optimize import least_squares
 # 1. PHYSICAL SYSTEM
 # ============================================================
 
-# Two-layer slab
-L_A = 0.01          # Material A thickness: 10 mm
-L_B = 0.02          # Material B thickness: 20 mm
+L_A = 0.01
+L_B = 0.02
 
-RHO_A = 7800.0      # kg/m^3
-RHO_B = 2700.0      # kg/m^3
+RHO_A = 7800.0
+RHO_B = 2700.0
 
-CP_A = 500.0        # J/(kg K)
-CP_B = 900.0        # J/(kg K)
+CP_A = 500.0
+CP_B = 900.0
 
-# Number of temperature cells in each material
 N_A = 5
 N_B = 5
 
@@ -36,71 +34,29 @@ def simulate(
     experiment,
     sample_times,
 ):
-    """
-    Simulate temperature evolution through the two-layer slab.
-
-    Parameters
-    ----------
-    k_a : float
-        Thermal conductivity of material A.
-
-    k_b : float
-        Thermal conductivity of material B.
-
-    r_interface : float
-        Thermal resistance at the A/B interface.
-
-    experiment : dict
-        Boundary and initial conditions.
-
-    sample_times : np.ndarray
-        Times at which temperatures are requested.
-
-    Returns
-    -------
-    np.ndarray
-        Temperature values at the requested sensor locations.
-    """
-
     initial_temperature = experiment["initial_temperature"]
     left_temperature = experiment["left_temperature"]
     right_temperature = experiment["right_temperature"]
 
     n = N_A + N_B
 
-    # Initial temperature of every cell
     initial_state = np.full(n, initial_temperature)
 
-    # --------------------------------------------------------
-    # Helper: calculate thermal conductance between cells
-    # --------------------------------------------------------
-
-    # Conductance inside material A
     conductance_a = k_a / DX_A
-
-    # Conductance inside material B
     conductance_b = k_b / DX_B
-
-    # Interface conductance
     conductance_interface = 1.0 / r_interface
 
     def rhs(t, temperatures):
         dTdt = np.zeros(n)
 
-        # ----------------------------------------------------
         # Left boundary
-        # ----------------------------------------------------
-
         heat_left = conductance_a * (
             left_temperature - temperatures[0]
         )
 
         dTdt[0] += heat_left / (RHO_A * CP_A * DX_A)
 
-        # ----------------------------------------------------
-        # Material A internal cells
-        # ----------------------------------------------------
-
+        # Material A
         for i in range(1, N_A):
             heat_in = conductance_a * (
                 temperatures[i - 1] - temperatures[i]
@@ -112,12 +68,11 @@ def simulate(
 
             net_heat = heat_in - heat_out
 
-            dTdt[i] += net_heat / (RHO_A * CP_A * DX_A)
+            dTdt[i] += net_heat / (
+                RHO_A * CP_A * DX_A
+            )
 
-        # ----------------------------------------------------
-        # A/B interface
-        # ----------------------------------------------------
-
+        # Interface
         interface_a = N_A - 1
         interface_b = N_A
 
@@ -127,17 +82,16 @@ def simulate(
         )
 
         dTdt[interface_a] -= (
-            heat_interface / (RHO_A * CP_A * DX_A)
+            heat_interface
+            / (RHO_A * CP_A * DX_A)
         )
 
         dTdt[interface_b] += (
-            heat_interface / (RHO_B * CP_B * DX_B)
+            heat_interface
+            / (RHO_B * CP_B * DX_B)
         )
 
-        # ----------------------------------------------------
-        # Material B internal cells
-        # ----------------------------------------------------
-
+        # Material B
         for i in range(N_A + 1, n - 1):
             heat_in = conductance_b * (
                 temperatures[i - 1] - temperatures[i]
@@ -149,12 +103,11 @@ def simulate(
 
             net_heat = heat_in - heat_out
 
-            dTdt[i] += net_heat / (RHO_B * CP_B * DX_B)
+            dTdt[i] += net_heat / (
+                RHO_B * CP_B * DX_B
+            )
 
-        # ----------------------------------------------------
         # Right boundary
-        # ----------------------------------------------------
-
         last = n - 1
 
         heat_right = conductance_b * (
@@ -162,7 +115,8 @@ def simulate(
         )
 
         dTdt[last] -= (
-            heat_right / (RHO_B * CP_B * DX_B)
+            heat_right
+            / (RHO_B * CP_B * DX_B)
         )
 
         return dTdt
@@ -185,12 +139,6 @@ def simulate(
 
     temperatures = solution.y
 
-    # Three sensors:
-    #
-    # sensor_1 -> inside material A
-    # sensor_2 -> near A/B interface
-    # sensor_3 -> inside material B
-
     sensor_1 = temperatures[1]
     sensor_2 = temperatures[N_A - 1]
     sensor_3 = temperatures[N_A + 2]
@@ -205,10 +153,10 @@ def simulate(
 
 
 # ============================================================
-# 3. EXPERIMENT DEFINITIONS
+# 3. VISIBLE CALIBRATION EXPERIMENTS
 # ============================================================
 
-experiments = [
+calibration_experiments = [
     {
         "name": "heating",
         "initial_temperature": 20.0,
@@ -231,36 +179,47 @@ experiments = [
 
 
 # ============================================================
-# 4. GROUND-TRUTH PARAMETERS
+# 4. HIDDEN VALIDATION EXPERIMENT
 # ============================================================
 
-# These are SECRET values from the perspective of the
-# eventual benchmark agent.
-#
-# For our prototype, we know them because we are generating
-# the synthetic experimental data.
+hidden_experiment = {
+    "name": "hidden_boundary_condition",
+    "initial_temperature": 20.0,
+    "left_temperature": 65.0,
+    "right_temperature": 10.0,
+}
+
+
+# ============================================================
+# 5. GROUND-TRUTH PARAMETERS
+# ============================================================
 
 TRUE_PARAMETERS = np.array(
     [
-        12.0,      # k_A
-        4.5,       # k_B
-        0.003,     # interface resistance
+        12.0,
+        4.5,
+        0.003,
     ]
 )
 
 
 # ============================================================
-# 5. GENERATE SYNTHETIC EXPERIMENTAL DATA
+# 6. GENERATE VISIBLE EXPERIMENTS
 # ============================================================
 
-def generate_experiments():
+def generate_calibration_data():
     rng = np.random.default_rng(42)
 
-    generated = []
+    datasets = []
 
-    sample_times = np.linspace(0.0, 2000.0, 101)
+    sample_times = np.linspace(
+        0.0,
+        2000.0,
+        101,
+    )
 
-    for experiment in experiments:
+    for experiment in calibration_experiments:
+
         clean = simulate(
             TRUE_PARAMETERS[0],
             TRUE_PARAMETERS[1],
@@ -269,7 +228,6 @@ def generate_experiments():
             sample_times,
         )
 
-        # Small measurement noise
         noise = rng.normal(
             loc=0.0,
             scale=0.05,
@@ -278,7 +236,7 @@ def generate_experiments():
 
         measured = clean + noise
 
-        generated.append(
+        datasets.append(
             {
                 "experiment": experiment,
                 "times": sample_times,
@@ -286,11 +244,11 @@ def generate_experiments():
             }
         )
 
-    return generated
+    return datasets
 
 
 # ============================================================
-# 6. PARAMETER FITTING
+# 7. PARAMETER FITTING
 # ============================================================
 
 def residuals(parameters, datasets):
@@ -299,6 +257,7 @@ def residuals(parameters, datasets):
     all_residuals = []
 
     for dataset in datasets:
+
         predicted = simulate(
             k_a,
             k_b,
@@ -307,7 +266,10 @@ def residuals(parameters, datasets):
             dataset["times"],
         )
 
-        error = predicted - dataset["measurements"]
+        error = (
+            predicted
+            - dataset["measurements"]
+        )
 
         all_residuals.extend(
             error.ravel()
@@ -316,21 +278,24 @@ def residuals(parameters, datasets):
     return np.asarray(all_residuals)
 
 
-def fit_parameters(datasets, initial_guess):
+def fit_parameters(
+    datasets,
+    initial_guess,
+):
     result = least_squares(
         residuals,
         x0=initial_guess,
         args=(datasets,),
         bounds=(
             [
-                0.5,       # minimum k_A
-                0.5,       # minimum k_B
-                0.0001,    # minimum interface resistance
+                0.5,
+                0.5,
+                0.0001,
             ],
             [
-                50.0,      # maximum k_A
-                50.0,      # maximum k_B
-                0.02,      # maximum interface resistance
+                50.0,
+                50.0,
+                0.02,
             ],
         ),
         verbose=0,
@@ -340,60 +305,177 @@ def fit_parameters(datasets, initial_guess):
 
 
 # ============================================================
-# 7. MAIN EXPERIMENT
+# 8. HIDDEN EXPERIMENT VALIDATION
+# ============================================================
+
+def validate_hidden_experiment(
+    fitted_parameters,
+):
+    sample_times = np.linspace(
+        0.0,
+        2000.0,
+        101,
+    )
+
+    # The verifier would have access to this clean
+    # reference data. The agent would NOT.
+    reference = simulate(
+        TRUE_PARAMETERS[0],
+        TRUE_PARAMETERS[1],
+        TRUE_PARAMETERS[2],
+        hidden_experiment,
+        sample_times,
+    )
+
+    prediction = simulate(
+        fitted_parameters[0],
+        fitted_parameters[1],
+        fitted_parameters[2],
+        hidden_experiment,
+        sample_times,
+    )
+
+    error = prediction - reference
+
+    rmse = np.sqrt(
+        np.mean(error ** 2)
+    )
+
+    max_error = np.max(
+        np.abs(error)
+    )
+
+    return rmse, max_error
+
+
+# ============================================================
+# 9. MAIN
 # ============================================================
 
 def main():
+
     print("=" * 60)
-    print("THERMAL PARAMETER IDENTIFICATION PROTOTYPE")
+    print(
+        "THERMAL PARAMETER IDENTIFICATION PROTOTYPE"
+    )
     print("=" * 60)
 
     print("\nTrue parameters:")
-    print(f"  k_A              = {TRUE_PARAMETERS[0]}")
-    print(f"  k_B              = {TRUE_PARAMETERS[1]}")
-    print(f"  R_interface      = {TRUE_PARAMETERS[2]}")
+    print(
+        f"  k_A              = "
+        f"{TRUE_PARAMETERS[0]}"
+    )
+    print(
+        f"  k_B              = "
+        f"{TRUE_PARAMETERS[1]}"
+    )
+    print(
+        f"  R_interface      = "
+        f"{TRUE_PARAMETERS[2]}"
+    )
 
-    datasets = generate_experiments()
+    datasets = generate_calibration_data()
 
-    print("\nGenerated experiments:")
+    print("\nVisible calibration experiments:")
+
     for dataset in datasets:
         print(
             f"  {dataset['experiment']['name']}: "
             f"{len(dataset['times'])} time points"
         )
 
-    # Several different starting guesses.
     initial_guesses = [
         [5.0, 2.0, 0.010],
         [20.0, 10.0, 0.001],
         [8.0, 8.0, 0.005],
     ]
 
+    recovered_parameters = []
+
     print("\nParameter recovery:")
     print("-" * 60)
 
-    for index, guess in enumerate(initial_guesses, start=1):
+    for index, guess in enumerate(
+        initial_guesses,
+        start=1,
+    ):
 
         result = fit_parameters(
             datasets,
-            np.array(guess, dtype=float),
+            np.array(
+                guess,
+                dtype=float,
+            ),
         )
 
         recovered = result.x
 
+        recovered_parameters.append(
+            recovered
+        )
+
         print(f"\nRun {index}")
-        print(f"  Initial guess:")
-        print(f"    k_A = {guess[0]}")
-        print(f"    k_B = {guess[1]}")
-        print(f"    R   = {guess[2]}")
+
+        print("  Initial guess:")
+        print(
+            f"    k_A = {guess[0]}"
+        )
+        print(
+            f"    k_B = {guess[1]}"
+        )
+        print(
+            f"    R   = {guess[2]}"
+        )
 
         print("\n  Recovered:")
-        print(f"    k_A = {recovered[0]:.6f}")
-        print(f"    k_B = {recovered[1]:.6f}")
-        print(f"    R   = {recovered[2]:.6f}")
 
-        print(f"\n  Cost = {result.cost:.8f}")
-        print(f"  Success = {result.success}")
+        print(
+            f"    k_A = "
+            f"{recovered[0]:.6f}"
+        )
+
+        print(
+            f"    k_B = "
+            f"{recovered[1]:.6f}"
+        )
+
+        print(
+            f"    R   = "
+            f"{recovered[2]:.6f}"
+        )
+
+        print(
+            f"\n  Cost = "
+            f"{result.cost:.8f}"
+        )
+
+        print(
+            f"  Success = "
+            f"{result.success}"
+        )
+
+    # Use the first recovered parameter set
+    # for hidden validation.
+    fitted = recovered_parameters[0]
+
+    rmse, max_error = validate_hidden_experiment(
+        fitted
+    )
+
+    print("\n")
+    print("=" * 60)
+    print("HIDDEN EXPERIMENT VALIDATION")
+    print("=" * 60)
+
+    print(
+        f"\nRMSE      = {rmse:.8f} °C"
+    )
+
+    print(
+        f"Max error = {max_error:.8f} °C"
+    )
+
+    print("\nValidation completed.")
 
 
 if __name__ == "__main__":
