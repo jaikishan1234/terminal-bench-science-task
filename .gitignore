@@ -47,3 +47,6 @@ Thumbs.db
 # Hidden benchmark data
 task-design/hidden/hidden_validation.csv
 task-design/hidden/reference_hidden_validation.csv
+
+tasks/thermal-interface-identification/task-design/hidden/reference_hidden_validation.csv
+tasks/thermal-interface-identification/task-design/hidden/hidden_validation.csv
