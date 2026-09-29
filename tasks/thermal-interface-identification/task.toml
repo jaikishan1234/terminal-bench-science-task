@@ -1,0 +1,10 @@
+﻿name = "thermal-interface-identification"
+version = "1.0"
+category = "scientific-computing"
+difficulty = "unvalidated"
+
+[environment]
+dockerfile = "environment/Dockerfile"
+
+[verifier]
+tests = "tests"

@@ -50,3 +50,7 @@ task-design/hidden/reference_hidden_validation.csv
 
 tasks/thermal-interface-identification/task-design/hidden/reference_hidden_validation.csv
 tasks/thermal-interface-identification/task-design/hidden/hidden_validation.csv
+
+# Private benchmark author artifacts
+tasks/thermal-interface-identification/solution/
+tasks/thermal-interface-identification/reference-workspace/
