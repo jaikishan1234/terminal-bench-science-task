@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import sys
@@ -17,13 +17,17 @@ WORKSPACE = Path(
     )
 ).resolve()
 
-# Evaluator-only data. This file must never be copied into workspace/.
-HIDDEN_DATA = (
-    TASK_ROOT.parent.parent
-    / "task-design"
-    / "hidden"
-    / "reference_hidden_validation.csv"
-)
+HIDDEN_DATA = Path(
+    os.environ.get(
+        "HIDDEN_DATA_PATH",
+        str(
+            TASK_ROOT.parent.parent
+            / "task-design"
+            / "hidden"
+            / "reference_hidden_validation.csv"
+        ),
+    )
+).resolve()
 
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))

@@ -8,7 +8,13 @@ import numpy as np
 
 
 TASK_ROOT = Path(__file__).resolve().parent.parent
-WORKSPACE = TASK_ROOT / "workspace"
+
+WORKSPACE = Path(
+    os.environ.get(
+        "TASK_WORKSPACE",
+        str(TASK_ROOT / "workspace"),
+    )
+).resolve()
 
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
